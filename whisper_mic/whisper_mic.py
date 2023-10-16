@@ -16,7 +16,20 @@ from whisper_mic.utils import get_logger
 
 
 class WhisperMic:
-    def __init__(self,model="base",device=("cuda" if torch.cuda.is_available() else "cpu"),english=False,verbose=False,energy=300,pause=0.8,dynamic_energy=False,save_file=False, model_root="~/.cache/whisper",mic_index=None):
+    def __init__(
+        self,
+        model="base",
+        device=("cuda" if torch.cuda.is_available() else "cpu"),
+        english=False,
+        verbose=False,
+        energy=300,
+        pause=0.8,
+        dynamic_energy=False,
+        save_file=False,
+        model_root="~/.cache/whisper",
+        mic_index=None,
+        finetuned_model_name=None
+        ):
         self.logger = get_logger("whisper_mic", "info")
         self.energy = energy
         self.pause = pause
@@ -38,6 +51,18 @@ class WhisperMic:
             model = model + ".en"
         
         self.audio_model = whisper.load_model(model, download_root=model_root).to(device)
+        if not finetuned_model_name is None:
+            from whisper_mic.utils import hf_to_whisper_states
+            MODEL_PATH = model_root + "/" + finetuned_model_name
+            hf_state_dict = torch.load(MODEL_PATH)
+
+            # Rename layers
+            for key in list(hf_state_dict.keys())[:]:
+                new_key = hf_to_whisper_states(key)
+                hf_state_dict[new_key] = hf_state_dict.pop(key)
+            
+            self.audio_model.load_state_dict(hf_state_dict)
+
         self.temp_dir = tempfile.mkdtemp() if save_file else None
 
         self.audio_queue = queue.Queue()
